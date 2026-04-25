@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView, // <--- Добавили импорт
   Platform // <--- Добавили импорт
   ,
+
+
   StyleSheet,
   Text,
   TextInput,
@@ -135,9 +137,16 @@ export default function RootLayout() {
     <WaybillProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Модальное окно' }} />
-        </Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen 
+        name="chat/[id]" 
+        options={{ 
+          presentation: 'modal', // 'modal' для выезда снизу или 'card' для стандартного сдвига
+          animation: 'slide_from_right',
+          headerShown: false 
+        }} 
+      />
+    </Stack>
         <StatusBar style="dark" /> 
         <GlobalModals />
       </ThemeProvider>

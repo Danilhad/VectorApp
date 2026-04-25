@@ -1,286 +1,303 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import { useRouter } from 'expo-router'; // Импорт роутера
+import React, { useState } from 'react';
 import {
-    Animated,
-    Dimensions,
     Image,
     Modal,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
-import { useWaybills } from '../WaybillContext';
 
-const { width, height } = Dimensions.get('window');
+export default function MainDashboard() {
+  const router = useRouter(); // Инициализация
 
-// --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ДАТ ---
-const getDateHeader = (timestamp) => {
-  const now = new Date();
-  const date = new Date(timestamp || Date.now());
-  
-  const isToday = now.toDateString() === date.toDateString();
-  const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
+  const announcements = [
+    { id: 1, title: 'Обновление маршрутов', text: 'С 1 мая меняется схема движения на учебном маршруте №3 (Автозавод).', type: 'info' },
+    { id: 2, title: 'Важно: Сдача отчетов', text: 'Просьба сдать оригиналы путевых листов за апрель до 28 числа.', type: 'urgent' },
+  ];
 
-  if (isToday) return 'Сегодня';
-  if (isYesterday) return 'Вчера';
-  
-  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-};
+  const MY_ID = 'user_me';
 
-export default function ManagerScreen() {
-  const { waybills, updateStatus } = useWaybills();
-  
-  // Разделение на Новые и Историю
-  const pendingBills = waybills.filter(b => b.status === 'pending');
-  const historyBills = waybills.filter(b => b.status !== 'pending');
+  // Синхронизировали ID с тестовыми чатами (3, 4, 5)
+  const COLLEAGUES = [
+    { 
+      id: '3', 
+      name: 'Колесников А.', 
+      schedule: 'Завтра: 08:00, Сормово', 
+      avatar: require('@/assets/images/user1.jpg') // Подключаем картинку
+    },
+    { 
+      id: '4', 
+      name: 'Иванов С.', 
+      schedule: 'Завтра: 10:00, Автозавод', 
+      avatar: require('@/assets/images/user2.jpg') 
+    },
+    { 
+      id: '5', 
+      name: 'Смирнов В.', 
+      schedule: 'Завтра: Выходной', 
+      avatar: null // У этого пользователя нет фото, сработает заглушка
+    },
+  ];
 
-  // Группировка истории по датам
-  const groupedHistory = historyBills.reduce((groups, bill) => {
-    const header = getDateHeader(bill.timestamp);
-    if (!groups[header]) groups[header] = [];
-    groups[header].push(bill);
-    return groups;
-  }, {});
+  const [coneHolderId, setConeHolderId] = useState('set_up'); 
+  const [isTransferModalVisible, setTransferModalVisible] = useState(false);
 
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [comment, setComment] = useState('');
-  const [zoomImage, setZoomImage] = useState(null);
-  const modalFade = useRef(new Animated.Value(0)).current;
-
-  const openRejectModal = (item) => {
-    setSelectedItem(item);
-    Animated.timing(modalFade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  const takeCones = () => setConeHolderId(MY_ID);
+  const setUpCones = () => setConeHolderId('set_up');
+  const passToColleague = (colleagueId: string) => {
+    setConeHolderId(colleagueId);
+    setTransferModalVisible(false);
   };
 
-  const closeRejectModal = () => {
-    Animated.timing(modalFade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-      setSelectedItem(null);
-      setComment('');
-    });
-  };
-
-  const handleConfirmReject = () => {
-    if (selectedItem) {
-      updateStatus(selectedItem.id, 'error', comment);
-      closeRejectModal();
+  const renderConeUI = () => {
+    if (coneHolderId === 'set_up') {
+      return (
+        <View style={styles.coneCard}>
+          <View style={styles.coneInfoRow}>
+            <View style={[styles.coneStatusIcon, { backgroundColor: '#E0F2F1' }]}>
+              <Ionicons name="flag" size={24} color="#009688" />
+            </View>
+            <View style={styles.coneDetails}>
+              <Text style={styles.coneStatusLabel}>Текущий статус:</Text>
+              <Text style={styles.coneHolder}>Выставлены на площадке</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.coneButtonPrimary} onPress={takeCones}>
+            <Text style={styles.coneButtonText}>Заберу конуса</Text>
+          </TouchableOpacity>
+        </View>
+      );
     }
+
+    if (coneHolderId === MY_ID) {
+      return (
+        <View style={styles.coneCard}>
+          <View style={styles.coneInfoRow}>
+            <View style={[styles.coneStatusIcon, { backgroundColor: '#FFF3E0' }]}>
+              <Ionicons name="car" size={24} color="#FF9800" />
+            </View>
+            <View style={styles.coneDetails}>
+              <Text style={styles.coneStatusLabel}>Текущий статус:</Text>
+              <Text style={styles.coneHolder}>У меня в машине</Text>
+            </View>
+          </View>
+          <View style={styles.coneActions}>
+            <TouchableOpacity style={styles.coneButtonPrimary} onPress={setUpCones}>
+              <Text style={styles.coneButtonText}>Выставил конуса</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.coneButtonSecondary} onPress={() => setTransferModalVisible(true)}>
+              <Ionicons name="swap-horizontal-outline" size={24} color="#1A1A1A" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    const holderInfo = COLLEAGUES.find(c => c.id === coneHolderId);
+    return (
+      <View style={styles.coneCard}>
+        <View style={styles.coneInfoRow}>
+          <View style={[styles.coneStatusIcon, { backgroundColor: '#E3F2FD' }]}>
+            <Ionicons name="person" size={24} color="#2196F3" />
+          </View>
+          <View style={styles.coneDetails}>
+            <Text style={styles.coneStatusLabel}>Текущий статус:</Text>
+            <Text style={styles.coneHolder}>У коллеги ({holderInfo?.name})</Text>
+          </View>
+        </View>
+        
+        <View style={styles.coneActions}>
+          <TouchableOpacity style={styles.coneButtonPrimary} onPress={takeCones}>
+            <Text style={styles.coneButtonText}>Заберу конуса</Text>
+          </TouchableOpacity>
+          {/* Переход в чат с держателем конусов */}
+          <TouchableOpacity 
+            style={styles.coneButtonSecondary}
+            onPress={() => router.push({ pathname: "/chat/[id]", params: { id: holderInfo?.id, name: holderInfo?.name, isGroup: 'false' } })}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#1A1A1A" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerBranding}>ВЕКТОР</Text>
-        <Text style={styles.headerTitle}>Проверка листов</Text>
+        <Text style={styles.headerTitle}>Главная</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* СЕКЦИЯ: НОВЫЕ */}
-        <View style={styles.sectionHeaderBox}>
-          <Text style={styles.sectionLabel}>Ожидают проверки</Text>
-          {pendingBills.length > 0 && (
-            <View style={styles.badge}><Text style={styles.badgeText}>{pendingBills.length}</Text></View>
-          )}
+        <View style={styles.profileBar}>
+          <Image source={require('@/assets/images/dino_scientist.png')} style={styles.profileBarAvatar} />
+          <View style={styles.profileBarInfo}>
+            <Text style={styles.profileBarName}>Хадиуллин Д. Н.</Text>
+            <Text style={styles.profileBarRole}>ИНСТРУКТОР</Text>
+          </View>
         </View>
 
-        {pendingBills.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="checkmark-done-circle-outline" size={48} color="#E5E7EB" />
-            <Text style={styles.emptyText}>Все листы проверены</Text>
-          </View>
-        ) : (
-          pendingBills.map(item => (
-            <View key={item.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.sender[0]}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.userName}>{item.sender}</Text>
-                  <Text style={styles.userDate}>{item.fileName}</Text>
-                </View>
-              </View>
+       
 
-              <TouchableOpacity 
-                style={styles.imagePreview} 
-                activeOpacity={0.9} 
-                onPress={() => setZoomImage(item.uri)}
-              >
-                {item.uri ? (
-                  <Image source={{ uri: item.uri }} style={styles.fullImg} resizeMode="cover" />
-                ) : (
-                  <View style={styles.placeholderImg}><Ionicons name="image-outline" size={32} color="#BDC3C7" /></View>
-                )}
-                <View style={styles.zoomBadge}>
-                  <Ionicons name="search" size={16} color="#FFF" />
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={[styles.btn, styles.rejectBtn]} onPress={() => openRejectModal(item)}>
-                  <Text style={styles.rejectBtnText}>Отклонить</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.btn, styles.approveBtn]} onPress={() => updateStatus(item.id, 'approved')}>
-                  <Text style={styles.approveBtnText}>Принять</Text>
-                </TouchableOpacity>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Объявления</Text>
+          <TouchableOpacity><Text style={styles.allLink}>Все</Text></TouchableOpacity>
+        </View>
+        <View style={styles.announcementsList}>
+          {announcements.map((item) => (
+            <View key={item.id} style={[styles.announcementCard, item.type === 'urgent' && styles.urgentCard]}>
+              <View style={styles.announcementHeader}>
+                <Ionicons name={item.type === 'urgent' ? "alert-circle" : "information-circle"} size={20} color={item.type === 'urgent' ? "#FF3B30" : "#007AFF"} />
+                <Text style={[styles.announcementTitle, item.type === 'urgent' && styles.urgentText]}>{item.title}</Text>
               </View>
+              <Text style={styles.announcementBody}>{item.text}</Text>
             </View>
-          ))
-        )}
+          ))}
+        </View>
 
-        {/* СЕКЦИЯ: ИСТОРИЯ С ГРУППИРОВКОЙ */}
-        <Text style={[styles.sectionLabel, { marginTop: 20, marginBottom: 15 }]}>История проверок</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Логистика конусов</Text>
+        </View>
         
-        {Object.keys(groupedHistory).length === 0 ? (
-          <Text style={[styles.emptyText, { textAlign: 'left', marginLeft: 5 }]}>История пуста</Text>
-        ) : (
-          Object.keys(groupedHistory).map(dateHeader => (
-            <View key={dateHeader} style={styles.dateGroup}>
-              <Text style={styles.dateHeader}>{dateHeader}</Text>
-              
-              {groupedHistory[dateHeader].map(item => (
-                <View key={item.id} style={styles.historyCard}>
-                  <TouchableOpacity 
-                    style={styles.historyHeader} 
-                    activeOpacity={0.7} 
-                    onPress={() => setZoomImage(item.uri)}
-                  >
-                    <Ionicons 
-                      name={item.status === 'approved' ? 'checkmark-circle' : 'close-circle'} 
-                      size={24} 
-                      color={item.status === 'approved' ? '#2E7D32' : '#C62828'} 
-                    />
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={styles.historyName}>{item.sender}</Text>
-                      <Text style={styles.historyDate}>{item.fileName}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color="#BDC3C7" />
-                  </TouchableOpacity>
+        {renderConeUI()}
 
-                  {/* Комментарий при отклонении */}
-                  {item.status === 'error' && item.comment && (
-                    <View style={styles.historyCommentBox}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={16} color="#C62828" />
-                      <Text style={styles.historyCommentText}>{item.comment}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
-          ))
-        )}
       </ScrollView>
 
-      {/* ПРОСМОТР ФОТО С ЗУМОМ (Темный фон для просмотра) */}
-      <Modal visible={!!zoomImage} transparent={false} animationType="fade">
-        <View style={styles.zoomContainer}>
-          <TouchableOpacity style={styles.closeZoom} onPress={() => setZoomImage(null)}>
-            <Ionicons name="close-circle" size={44} color="#FFF" />
-          </TouchableOpacity>
-          <ScrollView maximumZoomScale={4} minimumZoomScale={1} centerContent={true} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>
-            <Image source={{ uri: zoomImage }} style={styles.fullZoomImage} resizeMode="contain" />
-          </ScrollView>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isTransferModalVisible}
+        onRequestClose={() => setTransferModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalDragIndicator} />
+            <Text style={styles.modalTitle}>Передать конуса</Text>
+            <Text style={styles.modalSubtitle}>Выберите инструктора из списка</Text>
+            
+            <ScrollView style={styles.colleagueList}>
+              {COLLEAGUES.map((colleague) => (
+                <View key={colleague.id} style={styles.colleagueItem}>
+                  <TouchableOpacity 
+                    style={styles.colleagueMainAction}
+                    onPress={() => passToColleague(colleague.id)}
+                  >
+                    {/* Если есть аватарка — показываем фото, если нет — стандартную иконку */}
+{colleague.avatar ? (
+  <Image 
+    source={colleague.avatar} 
+    style={styles.colleagueAvatarImage} 
+  />
+) : (
+  <View style={styles.colleagueIcon}>
+    <Ionicons name="person-outline" size={20} color="#1A1A1A" />
+  </View>
+)}
+                    <View style={styles.colleagueInfo}>
+                      <Text style={styles.colleagueName}>{colleague.name}</Text>
+                      <Text style={[styles.colleagueSchedule, colleague.schedule.includes('Выходной') && { color: '#F44336' }]}>
+                        {colleague.schedule}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  {/* Кнопка связи в модалке тоже ведет в чат */}
+                  <TouchableOpacity 
+                    style={styles.contactButton}
+                    onPress={() => {
+                      setTransferModalVisible(false); // Закрываем модалку перед переходом
+                      router.push({ pathname: "/chat/[id]", params: { id: colleague.id, name: colleague.name, isGroup: 'false' } });
+                    }}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={22} color="#007AFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+            
+            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setTransferModalVisible(false)}>
+              <Text style={styles.modalCancelText}>Отмена</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
-      {/* МОДАЛКА ОТКЛОНЕНИЯ (Светлая тема) */}
-      {selectedItem && (
-        <Animated.View style={[styles.modalOverlay, { opacity: modalFade }]}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closeRejectModal} />
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Причина отклонения</Text>
-            <TextInput 
-              style={styles.input}
-              placeholder="Укажите, что исправить..."
-              placeholderTextColor="#999"
-              multiline
-              value={comment}
-              onChangeText={setComment}
-              autoFocus
-            />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeRejectModal}>
-                <Text style={styles.cancelBtnText}>Отмена</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleConfirmReject}>
-                <Text style={styles.submitBtnText}>Отправить</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Animated.View>
-      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F7FA' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, marginBottom: 15 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, marginBottom: 10 },
   headerBranding: { color: '#1A1A1A', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
   headerTitle: { color: '#888', fontSize: 14, fontWeight: '500' },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 15 },
   
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  
-  sectionHeaderBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingLeft: 5 },
-  sectionLabel: { color: '#AAA', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
-  badge: { backgroundColor: '#FF3B30', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 },
-  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  profileBar: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
+  profileBarAvatar: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#F0F0F0' },
+  profileBarInfo: { marginLeft: 15, justifyContent: 'center' },
+  profileBarName: { color: '#1A1A1A', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  profileBarRole: { color: '#888', fontSize: 12, fontWeight: '600', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  // Карточка проверки
-  card: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  avatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText: { color: '#1A1A1A', fontSize: 16, fontWeight: '800' },
-  userName: { color: '#1A1A1A', fontSize: 16, fontWeight: '700' },
-  userDate: { color: '#888', fontSize: 12, marginTop: 2 },
-  
-  imagePreview: { width: '100%', height: 180, backgroundColor: '#F8F9FB', borderRadius: 16, overflow: 'hidden', marginBottom: 15 },
-  fullImg: { width: '100%', height: '100%' },
-  placeholderImg: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  zoomBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 10 },
-  
-  // Кнопки действий
-  actionRow: { flexDirection: 'row', gap: 12 },
-  btn: { flex: 1, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  rejectBtn: { backgroundColor: '#FFEBEE' },
-  rejectBtnText: { color: '#C62828', fontSize: 15, fontWeight: '700' },
-  approveBtn: { backgroundColor: '#E8F5E9' },
-  approveBtnText: { color: '#2E7D32', fontSize: 15, fontWeight: '700' },
+  carSection: { alignItems: 'center', marginTop: 5, marginBottom: 15 },
+  carCard: { width: '100%', height: 200, backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 5, overflow: 'visible' },
+  carFullPhoto: { width: '100%', height: '100%', borderRadius: 24 },
+  plateImageBg: { position: 'absolute', bottom: -22, alignSelf: 'center', width: 200, height: 44, justifyContent: 'center', alignItems: 'center', zIndex: 10, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
+  plateImageStyle: { borderRadius: 6, resizeMode: 'stretch' },
+  plateContent: { flexDirection: 'row', alignItems: 'center', paddingRight: 5 },
+  plateText: { color: '#1A1A1A', fontSize: 30, fontWeight: '800', letterSpacing: 0.5 },
+  regionContainer: { marginLeft: 15, alignItems: 'center', justifyContent: 'center' },
+  plateRegion: { fontSize: 20, fontWeight: '800', color: '#1A1A1A', lineHeight: 20, top: -3 },
 
-  // Группировка истории
-  dateGroup: { marginBottom: 20 },
-  dateHeader: { color: '#888', fontSize: 13, fontWeight: '700', marginBottom: 12, marginLeft: 5 },
-  
-  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 20, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2, overflow: 'hidden' },
-  historyHeader: { flexDirection: 'row', alignItems: 'center', padding: 15 },
-  historyName: { color: '#1A1A1A', fontSize: 15, fontWeight: '700' },
-  historyDate: { color: '#888', fontSize: 12, marginTop: 2 },
-  
-  historyCommentBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8F8', padding: 12, borderTopWidth: 1, borderTopColor: '#FFEBEE', gap: 8 },
-  historyCommentText: { color: '#C62828', fontSize: 13, fontWeight: '500', flex: 1 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 5 },
+  sectionTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '800' },
+  allLink: { color: '#007AFF', fontSize: 14, fontWeight: '600' },
 
-  // Состояния
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
-  emptyText: { color: '#AAA', fontSize: 14, fontWeight: '500', marginTop: 10 },
+  announcementsList: { gap: 10 },
+  announcementCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#007AFF' },
+  urgentCard: { borderLeftColor: '#FF3B30' },
+  announcementHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  announcementTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  urgentText: { color: '#FF3B30' },
+  announcementBody: { fontSize: 13, color: '#666', lineHeight: 18 },
 
-  // Просмотр фото
-  zoomContainer: { flex: 1, backgroundColor: '#000' },
-  closeZoom: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
-  fullZoomImage: { width: width, height: height },
-  
-  // Модалка отклонения
-  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20, zIndex: 1000 },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject },
-  modalContent: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 25, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
-  modalTitle: { color: '#1A1A1A', fontSize: 18, fontWeight: '800', marginBottom: 20 },
-  input: { backgroundColor: '#F8F9FB', color: '#1A1A1A', borderRadius: 16, padding: 16, height: 100, textAlignVertical: 'top', fontSize: 15, marginBottom: 20, borderWidth: 1, borderColor: '#F0F0F0' },
-  modalBtns: { flexDirection: 'row', gap: 12 },
-  cancelBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 14, backgroundColor: '#F5F5F5' },
-  cancelBtnText: { color: '#888', fontSize: 15, fontWeight: '600' },
-  submitBtn: { flex: 1, backgroundColor: '#FF3B30', borderRadius: 14, padding: 16, alignItems: 'center', justifyContent: 'center' },
-  submitBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 }
+  coneCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
+  coneInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  coneStatusIcon: { width: 50, height: 50, borderRadius: 15, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center' },
+  coneDetails: { marginLeft: 15 },
+  coneStatusLabel: { fontSize: 12, color: '#888', fontWeight: '600' },
+  coneHolder: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginTop: 2 },
+  coneActions: { flexDirection: 'row', gap: 10 },
+  coneButtonPrimary: { flex: 1, backgroundColor: '#1A1A1A', borderRadius: 16, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  coneButtonSecondary: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#F8F9FB', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  coneButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, paddingBottom: 40, maxHeight: '80%' },
+  modalDragIndicator: { width: 40, height: 5, backgroundColor: '#E5E7EB', borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#1A1A1A', marginBottom: 5 },
+  modalSubtitle: { fontSize: 14, color: '#888', marginBottom: 20 },
+  colleagueList: { marginBottom: 20 },
+  colleagueItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  colleagueMainAction: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  colleagueIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F8F9FB', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  colleagueInfo: { flex: 1 },
+  colleagueName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  colleagueSchedule: { fontSize: 12, color: '#888', marginTop: 3 },
+  contactButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EBF5FF', justifyContent: 'center', alignItems: 'center' },
+  modalCancelButton: { backgroundColor: '#F8F9FB', borderRadius: 16, padding: 16, alignItems: 'center' },
+  modalCancelText: { color: '#1A1A1A', fontSize: 16, fontWeight: '700' },
+  colleagueAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 12, // Скругление как у иконки
+    marginRight: 15,
+  },
 });

@@ -20,7 +20,15 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Контроль',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="car.fill" color={color} />,
+        }}
+      />
+      {/* Новая вкладка Чаты */}
+      <Tabs.Screen
+        name="chats"
+        options={{
+          title: 'Чаты',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -33,8 +41,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="manager"
         options={{
-          title: 'Проверка',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="pencil.circle.fill" color={color} />,
+          title: 'Главная',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
     </Tabs>
