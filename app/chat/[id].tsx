@@ -2,116 +2,137 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
+    FlatList,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
-// Импортируем Firebase
-import {
-    addDoc,
-    collection,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function ChatWindow() {
-  const { id, name, isGroup } = useLocalSearchParams();
+import { useAuth } from '../../contexts/AuthContext';
+import { sendMessage, subscribeToMessages } from '../../services/dbService';
+
+export default function ChatScreen() {
+  const { id, chatName } = useLocalSearchParams<{ id: string, chatName?: string }>();
   const router = useRouter();
+  const { user } = useAuth();
+
+  const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState([]);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const [loading, setLoading] = useState(true);
+  const flatListRef = useRef<FlatList>(null);
 
-  // 1. Слушаем сообщения из Firestore в реальном времени
   useEffect(() => {
-    const messagesRef = collection(db, "chats", id as string, "messages");
-    const q = query(messagesRef, orderBy("createdAt", "asc"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    if (!user || !id) return;
+    const unsubscribe = subscribeToMessages(id, (fetchedMessages) => {
       setMessages(fetchedMessages);
+      setLoading(false);
     });
-
     return () => unsubscribe();
-  }, [id]);
+  }, [user, id]);
 
-  // 2. Отправка сообщения в Firebase
   const handleSend = async () => {
-    if (inputText.trim() === '') return;
-
+    const trimmedText = inputText.trim();
+    if (!trimmedText || !user || !id) return;
+    setInputText('');
     try {
-      const messagesRef = collection(db, "chats", id as string, "messages");
-      await addDoc(messagesRef, {
-        text: inputText.trim(),
-        createdAt: serverTimestamp(),
-        isMe: true, // В реальном приложении здесь будет проверка по auth.currentUser.uid
-        sender: "Хадиуллин Д. Н.",
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      });
-      
-      setInputText('');
+      await sendMessage(id, user.uid, trimmedText);
     } catch (error) {
       console.error("Ошибка при отправке:", error);
     }
   };
 
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+  const renderMessage = ({ item }: { item: any }) => {
+    const isMyMessage = item.senderId === user?.uid;
+    const timeString = item.createdAt?.toDate 
+      ? item.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : "";
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Хедер (дизайн остается прежним) */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#007AFF" />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>{name}</Text>
-          <Text style={styles.headerStatus}>в сети</Text>
+    return (
+      <View style={[styles.messageWrapper, isMyMessage ? styles.myMessageWrapper : styles.theirMessageWrapper]}>
+        <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.theirMessageBubble]}>
+          <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.theirMessageText]}>
+            {String(item.text || '')}
+          </Text>
+          {timeString ? (
+            <Text style={[styles.timeText, isMyMessage ? styles.myTimeText : styles.theirTimeText]}>
+              {timeString}
+            </Text>
+          ) : null}
         </View>
       </View>
+    );
+  };
 
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Оборачиваем ВСЁ в KeyboardAvoidingView. 
+        Offset ставим в 0, так как мы сами контролируем всю площадь экрана.
+      */}
       <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+        style={styles.flex1} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={60}
+       keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <ScrollView ref={scrollViewRef} contentContainerStyle={styles.chatContent}>
-          {messages.map((msg: any) => (
-            <View key={msg.id} style={[styles.messageRow, msg.isMe ? styles.messageRowMe : styles.messageRowThem]}>
-              <View style={[styles.bubble, msg.isMe ? styles.bubbleMe : styles.bubbleThem]}>
-                <Text style={[styles.messageText, msg.isMe ? styles.textMe : styles.textThem]}>{msg.text}</Text>
-                <Text style={[styles.timeText, msg.isMe ? styles.timeMe : styles.timeThem]}>{msg.time}</Text>
-              </View>
+        {/* Шапка теперь без лишних отступов */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color="#1A1A1A" />
+          </TouchableOpacity>
+          <View style={styles.headerProfile}>
+            <View style={styles.avatarCircle}>
+              <Ionicons name="person" size={20} color="#0075FF" />
             </View>
-          ))}
-        </ScrollView>
-
-        <View style={styles.inputArea}>
-          <View style={styles.inputContainer}>
-            <TextInput 
-              style={styles.input} 
-              placeholder="Сообщение..." 
-              value={inputText} 
-              onChangeText={setInputText} 
-              multiline 
-            />
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-              <Ionicons name="arrow-up" size={18} color="#FFF" />
-            </TouchableOpacity>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle} numberOfLines={1}>{chatName || "Служба поддержки"}</Text>
+              <Text style={styles.headerStatus}>в сети</Text>
+            </View>
           </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.center}><ActivityIndicator size="large" color="#0075FF" /></View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.messagesList}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {/* Нижняя панель ввода */}
+        <View style={styles.inputContainer}>
+          <TouchableOpacity style={styles.attachButton}>
+            <Ionicons name="add-circle" size={30} color="#0075FF" />
+          </TouchableOpacity>
+          
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder="Сообщение..."
+              placeholderTextColor="#999"
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.sendButton, !inputText.trim() && styles.sendDisabled]} 
+            onPress={handleSend}
+            disabled={!inputText.trim()}
+          >
+            <Ionicons name="arrow-up" size={24} color="#FFF" />
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -119,27 +140,72 @@ export default function ChatWindow() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 12, borderBottomWidth: 1, borderBottomColor: '#EFEFEF' },
-  backButton: { marginRight: 10 },
-  headerInfo: { flex: 1 },
-  headerName: { fontSize: 16, fontWeight: '700' },
-  headerStatus: { fontSize: 12, color: '#007AFF' },
-  chatContent: { padding: 15 },
-  messageRow: { flexDirection: 'row', marginBottom: 12 },
-  messageRowMe: { justifyContent: 'flex-end' },
-  messageRowThem: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '80%', padding: 12, borderRadius: 18 },
-  bubbleMe: { backgroundColor: '#1A1A1A' },
-  bubbleThem: { backgroundColor: '#E9ECEF' },
-  messageText: { fontSize: 15 },
-  textMe: { color: '#FFF' },
-  textThem: { color: '#1A1A1A' },
-  timeText: { fontSize: 10, alignSelf: 'flex-end', marginTop: 4 },
-  timeMe: { color: 'rgba(255,255,255,0.6)' },
-  timeThem: { color: '#888' },
-  inputArea: { padding: 10, backgroundColor: '#FFF' },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 24, paddingHorizontal: 15, paddingVertical: 8 },
-  input: { flex: 1, fontSize: 16 },
-  sendButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginLeft: 8 }
+  container: { flex: 1, backgroundColor: '#FFF' }, // Основной фон белый для чистоты
+  flex1: { flex: 1, backgroundColor: '#F8F9FB' }, // Фон чата чуть серый
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 15, 
+    height: 60, 
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1, 
+    borderBottomColor: '#F0F0F0' 
+  },
+  backButton: { padding: 5 },
+  headerProfile: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 10 },
+  avatarCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F7FF', justifyContent: 'center', alignItems: 'center' },
+  headerTextContainer: { marginLeft: 10 },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
+  headerStatus: { fontSize: 11, color: '#4CAF50', fontWeight: '600' },
+  
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  messagesList: { padding: 15, paddingBottom: 20 },
+  messageWrapper: { marginBottom: 12, flexDirection: 'row' },
+  myMessageWrapper: { justifyContent: 'flex-end' },
+  theirMessageWrapper: { justifyContent: 'flex-start' },
+  messageBubble: { maxWidth: '78%', padding: 12, borderRadius: 20 },
+  myMessageBubble: { backgroundColor: '#0075FF', borderBottomRightRadius: 4 },
+  theirMessageBubble: { backgroundColor: '#FFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#E8E8E8' },
+  messageText: { fontSize: 15, lineHeight: 20 },
+  myMessageText: { color: '#FFF' },
+  theirMessageText: { color: '#1A1A1A' },
+  timeText: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
+  myTimeText: { color: 'rgba(255,255,255,0.7)' },
+  theirTimeText: { color: '#AAA' },
+
+  inputContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  attachButton: { paddingHorizontal: 5 },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: '#F2F3F5',
+    borderRadius: 22,
+    marginHorizontal: 8,
+    paddingHorizontal: 15,
+    minHeight: 40,
+    justifyContent: 'center'
+  },
+  input: { 
+    fontSize: 16, 
+    color: '#1A1A1A', 
+    maxHeight: 100, 
+    paddingTop: Platform.OS === 'ios' ? 8 : 5, 
+    paddingBottom: Platform.OS === 'ios' ? 8 : 5 
+  },
+  sendButton: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 18, 
+    backgroundColor: '#0075FF', 
+    justifyContent: 'center', 
+    alignItems: 'center'
+  },
+  sendDisabled: { backgroundColor: '#E5E5E5' }
 });

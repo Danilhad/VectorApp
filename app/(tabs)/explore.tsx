@@ -35,9 +35,21 @@ export default function WaybillsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Шапка */}
       <View style={styles.header}>
-        <Text style={styles.headerBranding}>ВЕКТОР</Text>
-        <Text style={styles.headerTitle}>Путевые листы</Text>
-      </View>
+    
+    {/* Левая часть: Лого + ВЕКТОР (в одну строку) */}
+    <View style={styles.brandingContainer}>
+      <Image 
+        source={require('@/assets/images/splash.png')} 
+        style={styles.logo} 
+        resizeMode="contain" 
+      />
+      <Text style={styles.headerBranding}>ВЕКТОР</Text>
+    </View>
+
+    {/* Правая часть: Название вкладки */}
+    <Text style={styles.headerTitle}>Путевые листы</Text>
+    
+  </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
@@ -96,11 +108,51 @@ export default function WaybillsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, marginBottom: 10 },
-  headerBranding: { color: '#1A1A1A', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
-  headerTitle: { color: '#888', fontSize: 14, fontWeight: '500' },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 15 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F5F7FA' 
+  },
+  
+  header: { 
+    flexDirection: 'row',          // Выстраивает левую и правую части в ряд
+    alignItems: 'center',          // Центрирует элементы по вертикали
+    justifyContent: 'space-between', // Разносит брендинг влево, а название вправо
+    paddingHorizontal: 20, 
+    paddingTop: 10, 
+    marginBottom: 10,
+    width: '100%',                 // Занимает всю ширину экрана
+  },
+
+  brandingContainer: {
+    flexDirection: 'row',          // Выстраивает Лого и текст ВЕКТОР в ряд
+    alignItems: 'center',          // Выравнивает их по одной линии
+    gap: 10,                       // Расстояние между картинкой и текстом
+  },
+
+  logo: {
+    width: 30,
+    height: 30,
+  },
+
+  headerBranding: { 
+    color: '#1A1A1A', 
+    fontSize: 20, 
+    fontWeight: '900', 
+    letterSpacing: 0.5 
+  },
+
+  headerTitle: { 
+    color: '#888', 
+    fontSize: 14, 
+    fontWeight: '500',
+    textAlign: 'right',            // Дополнительная страховка для текста справа
+  },
+
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 120, 
+    gap: 15 
+  },
   
   // Компактный профиль
   profileBar: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
